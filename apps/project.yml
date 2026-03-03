@@ -1,0 +1,32 @@
+name: MacbookController
+options:
+  minimumXcodeGenVersion: 2.39.0
+settings:
+  base:
+    SWIFT_VERSION: 5.10
+    PRODUCT_BUNDLE_IDENTIFIER: com.kp147852.macbookcontroller
+
+targets:
+  MacbookControllerMac:
+    type: application
+    platform: macOS
+    deploymentTarget: "13.0"
+    sources:
+      - macos/MacbookControllerMac
+    info:
+      path: macos/MacbookControllerMac/Info.plist
+      properties:
+        CFBundleDisplayName: Macbook Controller Mac
+        NSCameraUsageDescription: Not used
+        NSScreenCaptureUsageDescription: Macbook Controller needs screen recording permission to stream your display.
+
+  MacbookControlleriOS:
+    type: application
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - ios/MacbookControlleriOS
+    info:
+      path: ios/MacbookControlleriOS/Info.plist
+      properties:
+        CFBundleDisplayName: Macbook Controller

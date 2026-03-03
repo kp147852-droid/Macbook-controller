@@ -1,61 +1,92 @@
-# Mac iPhone Remote Control (Standalone Project)
+# Macbook Controller
 
-This is a separate project from your AI assistant and math app.
+Standalone project for controlling your Mac from your iPhone over the internet.
 
-## What this MVP does
-- Streams your Mac screen to an iPhone web controller.
-- Sends click, move, scroll, key, and typed-text events from iPhone to Mac.
-- Uses a relay backend so it works over the internet when deployed.
-- Uses short-lived 6-digit pairing codes.
+## Included
+- Hardened relay backend (`relay/`) with:
+  - short-lived pair codes
+  - token-authenticated Mac registration
+  - optional HTTPS enforcement
+  - origin allowlist
+  - per-IP rate limits
+  - security response headers
+- Native macOS app source (`apps/macos/MacbookControllerMac`)
+- Native iOS app source (`apps/ios/MacbookControlleriOS`)
+- Web controller fallback (`controller/`)
+- HTTPS/WSS deployment configs (`deploy/`)
 
-## Project layout
-- `relay/`: FastAPI relay + pairing code API + WebSocket bridge
-- `mac_agent/`: Python agent that captures frames and executes remote inputs on macOS
-- `controller/`: iPhone-friendly web UI (open in Safari)
+## Architecture
+1. macOS app creates pair code via relay API.
+2. macOS app connects to relay WebSocket and streams screen frames.
+3. iOS app connects using the pair code.
+4. iOS app sends remote control events (click/scroll/key/text).
+5. Relay bridges messages between both clients.
 
-## 1) Run relay server
+## Relay setup (production)
 ```bash
 cd relay
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-export MAC_DEVICE_TOKEN='replace-with-long-random-token'
-uvicorn relay_server:app --host 0.0.0.0 --port 8787
-```
-
-## 2) Run Mac agent
-```bash
-cd mac_agent
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
 ```
 
-Edit `.env`:
+Update `relay/.env`:
 ```env
-RELAY_HTTP_URL=http://YOUR_RELAY_HOST:8787
-RELAY_WS_URL=ws://YOUR_RELAY_HOST:8787
 MAC_DEVICE_TOKEN=replace-with-long-random-token
+PAIR_CODE_TTL_SECONDS=300
+ALLOWED_ORIGINS=https://controller.yourdomain.com
+REQUIRE_HTTPS=true
+RATE_LIMIT_WINDOW_SECONDS=60
+RATE_LIMIT_CREATE_CODE=15
+RATE_LIMIT_CHECK_CODE=120
 ```
 
-Start:
+Run relay:
 ```bash
-python agent.py
+uvicorn relay_server:app --host 0.0.0.0 --port 8787
 ```
 
-The agent prints a 6-digit code. Use it from iPhone.
+## HTTPS/WSS deployment
+Use `deploy/Caddyfile` and `deploy/docker-compose.yml`.
 
-## 3) Open controller on iPhone
-- Host `controller/index.html` anywhere static (or open locally for testing).
-- Enter `ws://YOUR_RELAY_HOST:8787` and the 6-digit code.
+Edit domains in `deploy/Caddyfile`:
+- `relay.yourdomain.com`
+- `controller.yourdomain.com`
 
-## macOS permissions required
-- System Settings -> Privacy & Security -> Accessibility: allow terminal/python app
-- Screen Recording: allow terminal/python app
+Start stack:
+```bash
+cd deploy
+docker compose up -d
+```
 
-## Internet deployment notes
-- Put relay behind HTTPS/WSS (reverse proxy + TLS)
-- Use strong random `MAC_DEVICE_TOKEN`
-- Restrict CORS/origins in `relay_server.py` before production
-- Add rate limiting and audit logs before full production usage
+This gives:
+- HTTPS endpoint for API (`https://relay.yourdomain.com`)
+- WSS endpoint for sockets (`wss://relay.yourdomain.com`)
+- static hosting for the fallback web controller (`https://controller.yourdomain.com`)
+
+## Native app build
+See [apps/README.md](apps/README.md).
+
+Quick start:
+```bash
+brew install xcodegen
+cd apps
+xcodegen generate
+```
+
+Then open `MacbookController.xcodeproj` in Xcode and run:
+- `MacbookControllerMac` on Mac
+- `MacbookControlleriOS` on iPhone
+
+## macOS permissions
+For the macOS app/agent to work:
+- System Settings -> Privacy & Security -> Screen Recording
+- System Settings -> Privacy & Security -> Accessibility
+
+## Security checklist
+- Use a long random `MAC_DEVICE_TOKEN`
+- Keep `REQUIRE_HTTPS=true` in production
+- Set explicit `ALLOWED_ORIGINS`
+- Run relay behind Caddy/Nginx with TLS
+- Put relay behind firewall and monitor logs
